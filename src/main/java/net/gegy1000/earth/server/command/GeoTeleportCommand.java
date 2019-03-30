@@ -50,7 +50,8 @@ public class GeoTeleportCommand extends CommandBase {
             Thread thread = new Thread(() -> {
                 try {
                     CommandLocation location = this.parseLocation(sender, locationInput);
-                    this.teleport(entity, location.getCoordinate(sender, earthData));
+                    Coordinate coordinate = location.getCoordinate(sender, earthData);
+                    server.addScheduledTask(() -> this.teleport(entity, coordinate));
                 } catch (CommandException e) {
                     TextComponentTranslation message = new TextComponentTranslation(e.getMessage(), e.getErrorObjects());
                     message.getStyle().setColor(TextFormatting.RED);
