@@ -14,12 +14,13 @@ public final class SpongeSupport {
         if (generatorClass.getName().equals(SPONGE_GENERATOR_NAME)) {
             try {
                 Field field = generatorClass.getDeclaredField(GENERATOR_FIELD_NAME);
+                field.setAccessible(true);
                 IChunkGenerator unwrappedGenerator = (IChunkGenerator) field.get(generator);
                 if (unwrappedGenerator != null) {
                     return unwrappedGenerator;
                 }
             } catch (ReflectiveOperationException e) {
-                Terrarium.LOGGER.error("Failed to get {} field on {}", GENERATOR_FIELD_NAME, generatorClass.getSimpleName());
+                Terrarium.LOGGER.error("Failed to get {} field on {}", GENERATOR_FIELD_NAME, generatorClass.getSimpleName(), e);
             }
         }
 
