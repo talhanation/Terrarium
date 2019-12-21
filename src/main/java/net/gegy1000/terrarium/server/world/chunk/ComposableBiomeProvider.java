@@ -14,28 +14,16 @@ import net.minecraft.world.biome.BiomeProvider;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 
 public class ComposableBiomeProvider extends BiomeProvider {
-    private final World world;
-
-    private final Lazy<RegionGenerationHandler> regionHandler;
-    private final Lazy<ChunkCompositionProcedure> compositionProcedure;
+    private final Lazy<Optional<TerrariumWorldData>> terrarium;
 
     private final BiomeCache biomeCache = new BiomeCache(this);
 
     public ComposableBiomeProvider(World world) {
-        this.world = world;
-
-        this.regionHandler = new Lazy<>(() -> {
-            TerrariumWorldData capability = this.world.getCapability(TerrariumCapabilities.worldDataCapability, null);
-            if (capability != null) {
-                return capability.getRegionHandler();
-            }
-            throw new IllegalStateException("Tried to load RegionGenerationHandler before it was present");
-        });
-
-        this.compositionProcedure = new Lazy.WorldCap<>(world, TerrariumWorldData::getCompositionProcedure);
+        this.terrarium = Lazy.ofCapability(world, TerrariumCapabilities.worldDataCapability);
     }
 
     @Override
@@ -102,9 +90,15 @@ public class ComposableBiomeProvider extends BiomeProvider {
     }
 
     private void populateArea(Biome[] biomes, int x, int z, int width, int height) {
-        RegionGenerationHandler regionHandler = this.regionHandler.get();
+        Optional<TerrariumWorldData> terrariumOption = this.terrarium.get();
+        if (!terrariumOption.isPresent()) {
+            Arrays.fill(biomes, Biomes.PLAINS);
+            return;
+        }
 
-        ChunkCompositionProcedure compositionProcedure = this.compositionProcedure.get();
+        TerrariumWorldData terrarium = terrariumOption.get();
+        ChunkCompositionProcedure compositionProcedure = terrarium.getCompositionProcedure();
+        RegionGenerationHandler regionHandler = terrarium.getRegionHandler();
 
         if (this.isChunkGeneration(x, z, width, height)) {
             regionHandler.prepareChunk(x, z, compositionProcedure.getBiomeDependencies());

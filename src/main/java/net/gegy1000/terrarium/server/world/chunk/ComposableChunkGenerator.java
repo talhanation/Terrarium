@@ -15,15 +15,14 @@ import net.minecraft.world.chunk.ChunkPrimer;
 import net.minecraftforge.event.ForgeEventFactory;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 
 public class ComposableChunkGenerator implements TerrariumChunkGenerator {
     private final World world;
     private final Random random;
 
-    private final Lazy<ChunkCompositionProcedure> compositionProcedure;
-
-    private final Lazy<RegionGenerationHandler> regionHandler;
+    private final Lazy<Optional<TerrariumWorldData>> terrarium;
 
     private final Biome[] biomeBuffer = new Biome[16 * 16];
 
@@ -31,15 +30,7 @@ public class ComposableChunkGenerator implements TerrariumChunkGenerator {
         this.world = world;
         this.random = new Random(world.getWorldInfo().getSeed());
 
-        this.compositionProcedure = new Lazy.WorldCap<>(world, TerrariumWorldData::getCompositionProcedure);
-
-        this.regionHandler = new Lazy<>(() -> {
-            TerrariumWorldData capability = this.world.getCapability(TerrariumCapabilities.worldDataCapability, null);
-            if (capability != null) {
-                return capability.getRegionHandler();
-            }
-            throw new IllegalStateException("Tried to load RegionGenerationHandler before it was present");
-        });
+        this.terrarium = Lazy.ofCapability(world, TerrariumCapabilities.worldDataCapability);
     }
 
     @Override
@@ -64,20 +55,24 @@ public class ComposableChunkGenerator implements TerrariumChunkGenerator {
         ChunkPrimer primer = new ChunkPrimer();
         this.populateTerrain(chunkX, chunkZ, primer);
 
-        RegionGenerationHandler regionHandler = this.regionHandler.get();
-        ChunkCompositionProcedure compositionProcedure = this.compositionProcedure.get();
-        compositionProcedure.composeStructures(this, primer, regionHandler, chunkX, chunkZ);
+        this.terrarium.get().ifPresent(terrarium -> {
+            RegionGenerationHandler regionHandler = terrarium.getRegionHandler();
+            ChunkCompositionProcedure compositionProcedure = terrarium.getCompositionProcedure();
+            compositionProcedure.composeStructures(this, primer, regionHandler, chunkX, chunkZ);
+        });
 
         return primer;
     }
 
     @Override
     public void populateTerrain(int chunkX, int chunkZ, ChunkPrimer primer) {
-        RegionGenerationHandler regionHandler = this.regionHandler.get();
-        regionHandler.prepareChunk(chunkX << 4, chunkZ << 4);
+        this.terrarium.get().ifPresent(terrarium -> {
+            RegionGenerationHandler regionHandler = terrarium.getRegionHandler();
+            regionHandler.prepareChunk(chunkX << 4, chunkZ << 4);
 
-        ChunkCompositionProcedure compositionProcedure = this.compositionProcedure.get();
-        compositionProcedure.composeSurface(this, primer, regionHandler, chunkX, chunkZ);
+            ChunkCompositionProcedure compositionProcedure = terrarium.getCompositionProcedure();
+            compositionProcedure.composeSurface(this, primer, regionHandler, chunkX, chunkZ);
+        });
     }
 
     public Biome[] provideBiomes(int chunkX, int chunkZ) {
@@ -86,25 +81,27 @@ public class ComposableChunkGenerator implements TerrariumChunkGenerator {
 
     @Override
     public void populate(int chunkX, int chunkZ) {
-        int globalX = chunkX << 4;
-        int globalZ = chunkZ << 4;
+        this.terrarium.get().ifPresent(terrarium -> {
+            int globalX = chunkX << 4;
+            int globalZ = chunkZ << 4;
 
-        this.random.setSeed(chunkX * 341873128712L + chunkZ * 132897987541L);
+            this.random.setSeed(chunkX * 341873128712L + chunkZ * 132897987541L);
 
-        BlockFalling.fallInstantly = true;
+            BlockFalling.fallInstantly = true;
 
-        RegionGenerationHandler regionHandler = this.regionHandler.get();
-        regionHandler.prepareChunk(globalX + 8, globalZ + 8);
+            RegionGenerationHandler regionHandler = terrarium.getRegionHandler();
+            regionHandler.prepareChunk(globalX + 8, globalZ + 8);
 
-        ForgeEventFactory.onChunkPopulate(true, this, this.world, this.random, chunkX, chunkZ, false);
+            ForgeEventFactory.onChunkPopulate(true, this, this.world, this.random, chunkX, chunkZ, false);
 
-        ChunkCompositionProcedure compositionProcedure = this.compositionProcedure.get();
-        compositionProcedure.composeDecoration(this, this.world, regionHandler, chunkX, chunkZ);
-        compositionProcedure.populateStructures(this.world, regionHandler, chunkX, chunkZ);
+            ChunkCompositionProcedure compositionProcedure = terrarium.getCompositionProcedure();
+            compositionProcedure.composeDecoration(this, this.world, regionHandler, chunkX, chunkZ);
+            compositionProcedure.populateStructures(this.world, regionHandler, chunkX, chunkZ);
 
-        ForgeEventFactory.onChunkPopulate(false, this, this.world, this.random, chunkX, chunkZ, false);
+            ForgeEventFactory.onChunkPopulate(false, this, this.world, this.random, chunkX, chunkZ, false);
 
-        BlockFalling.fallInstantly = false;
+            BlockFalling.fallInstantly = false;
+        });
     }
 
     @Override
@@ -119,20 +116,28 @@ public class ComposableChunkGenerator implements TerrariumChunkGenerator {
 
     @Override
     public BlockPos getNearestStructurePos(World world, String structureName, BlockPos pos, boolean findUnexplored) {
-        ChunkCompositionProcedure compositionProcedure = this.compositionProcedure.get();
-        return compositionProcedure.getNearestStructure(world, structureName, pos, findUnexplored);
+        return this.terrarium.get().map(terrarium -> {
+            ChunkCompositionProcedure compositionProcedure = terrarium.getCompositionProcedure();
+            return compositionProcedure.getNearestStructure(this.world, structureName, pos, findUnexplored);
+        }).orElse(null);
     }
 
     @Override
     public boolean isInsideStructure(World world, String structureName, BlockPos pos) {
-        ChunkCompositionProcedure compositionProcedure = this.compositionProcedure.get();
-        return compositionProcedure.isInsideStructure(world, structureName, pos);
+        Optional<TerrariumWorldData> terrariumOption = this.terrarium.get();
+        if (terrariumOption.isPresent()) {
+            ChunkCompositionProcedure compositionProcedure = terrariumOption.get().getCompositionProcedure();
+            return compositionProcedure.isInsideStructure(this.world, structureName, pos);
+        }
+        return false;
     }
 
     @Override
     public void recreateStructures(Chunk chunk, int chunkX, int chunkZ) {
-        RegionGenerationHandler regionHandler = this.regionHandler.get();
-        ChunkCompositionProcedure compositionProcedure = this.compositionProcedure.get();
-        compositionProcedure.composeStructures(this, null, regionHandler, chunkX, chunkZ);
+        this.terrarium.get().ifPresent(terrarium -> {
+            RegionGenerationHandler regionHandler = terrarium.getRegionHandler();
+            ChunkCompositionProcedure compositionProcedure = terrarium.getCompositionProcedure();
+            compositionProcedure.composeStructures(this, null, regionHandler, chunkX, chunkZ);
+        });
     }
 }

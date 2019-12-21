@@ -1,39 +1,36 @@
 package net.gegy1000.terrarium.server.util;
 
-import net.gegy1000.terrarium.server.capability.TerrariumCapabilities;
-import net.gegy1000.terrarium.server.capability.TerrariumWorldData;
-import net.minecraft.world.World;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.ICapabilityProvider;
 
-import java.util.function.Function;
+import javax.annotation.Nonnull;
+import java.util.Optional;
 import java.util.function.Supplier;
 
-public class Lazy<T> {
+public final class Lazy<T> {
     private final Supplier<T> supplier;
 
     private T value;
     private boolean present;
 
-    public Lazy(Supplier<T> supplier) {
+    private Lazy(Supplier<T> supplier) {
         this.supplier = supplier;
     }
 
+    public static <T> Lazy<T> of(Supplier<T> supplier) {
+        return new Lazy<>(supplier);
+    }
+
+    public static <O extends ICapabilityProvider, T> Lazy<Optional<T>> ofCapability(O object, Capability<T> capability) {
+        return Lazy.of(() -> Optional.ofNullable(object.getCapability(capability, null)));
+    }
+
+    @Nonnull
     public T get() {
         if (!this.present) {
             this.value = this.supplier.get();
             this.present = true;
         }
         return this.value;
-    }
-
-    public static class WorldCap<T> extends Lazy<T> {
-        public WorldCap(World world, Function<TerrariumWorldData, T> function) {
-            super(() -> {
-                TerrariumWorldData capability = world.getCapability(TerrariumCapabilities.worldDataCapability, null);
-                if (capability != null) {
-                    return function.apply(capability);
-                }
-                throw new IllegalStateException("Tried to get world capability before it was present");
-            });
-        }
     }
 }
