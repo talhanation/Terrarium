@@ -209,14 +209,13 @@ public class DataSourceHandler {
         }
 
         public boolean isComplete() {
+            if (this.future == null) return false;
             return this.future.isDone() || this.future.isCancelled();
         }
 
         public SourceResult<T> getResult() {
             try {
-                if (this.future == null) {
-                    return SourceResult.empty();
-                }
+                if (this.future == null) return SourceResult.empty();
                 return this.future.get();
             } catch (ExecutionException e) {
                 return SourceResult.exception(e);
