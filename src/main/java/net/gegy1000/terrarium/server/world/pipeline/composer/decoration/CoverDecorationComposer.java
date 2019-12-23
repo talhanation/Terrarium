@@ -29,7 +29,7 @@ public class CoverDecorationComposer implements DecorationComposer {
 
     private final List<CoverGenerationContext> context;
     private final Map<CoverType<?>, CoverDecorationGenerator<?>> generators;
-    private final Set<CoverType<?>> coverTypes = new HashSet<>();
+    private final ThreadLocal<Set<CoverType<?>>> coverTypes = ThreadLocal.withInitial(HashSet::new);
 
     public CoverDecorationComposer(
             World world,
@@ -52,10 +52,11 @@ public class CoverDecorationComposer implements DecorationComposer {
 
         CoverRasterTile coverRaster = regionHandler.getCachedChunkRaster(this.coverComponent);
 
-        this.coverTypes.clear();
+        Set<CoverType<?>> coverTypes = this.coverTypes.get();
+        coverTypes.clear();
         for (int localZ = 0; localZ < 16; localZ++) {
             for (int localX = 0; localX < 16; localX++) {
-                this.coverTypes.add(coverRaster.get(localX, localZ));
+                coverTypes.add(coverRaster.get(localX, localZ));
             }
         }
 
@@ -66,7 +67,7 @@ public class CoverDecorationComposer implements DecorationComposer {
             context.prepareChunk(regionHandler);
         }
 
-        for (CoverType<?> type : this.coverTypes) {
+        for (CoverType<?> type : coverTypes) {
             CoverDecorationGenerator<?> coverGenerator = this.generators.get(type);
             if (coverGenerator != null) {
                 this.random.setSeed(randomSeed);
