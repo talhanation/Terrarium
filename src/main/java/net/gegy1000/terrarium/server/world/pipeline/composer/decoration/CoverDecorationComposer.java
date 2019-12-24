@@ -29,7 +29,6 @@ public class CoverDecorationComposer implements DecorationComposer {
 
     private final List<CoverGenerationContext> context;
     private final Map<CoverType<?>, CoverDecorationGenerator<?>> generators;
-    private final ThreadLocal<Set<CoverType<?>>> coverTypes = ThreadLocal.withInitial(HashSet::new);
 
     public CoverDecorationComposer(
             World world,
@@ -52,8 +51,7 @@ public class CoverDecorationComposer implements DecorationComposer {
 
         CoverRasterTile coverRaster = regionHandler.getCachedChunkRaster(this.coverComponent);
 
-        Set<CoverType<?>> coverTypes = this.coverTypes.get();
-        coverTypes.clear();
+        Set<CoverType<?>> coverTypes = new HashSet<>(4);
         for (int localZ = 0; localZ < 16; localZ++) {
             for (int localX = 0; localX < 16; localX++) {
                 coverTypes.add(coverRaster.get(localX, localZ));
